@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Buku Tamu Digital - Kantor Pertanahan Kabupaten Kapuas</title>
+  <style>
+    :root{--accent:#2563eb;--muted:#666}
+    body{font-family:Inter, system-ui, Arial; margin:20px; background:#f7fafc; color:#0f172a}
+    .container{max-width:1000px;margin:0 auto;background:#fff;padding:20px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.08)}
+    h1{margin:0 0 8px;font-size:20px}
+    p.lead{margin:0 0 16px;color:var(--muted)}
+    form{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
+    label{font-size:12px;color:var(--muted)}
+    input,textarea,select{width:100%;padding:8px;border:1px solid #e6edf3;border-radius:8px;font-size:14px}
+    textarea{resize:vertical}
+    .full{grid-column:1/-1}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.secondary{background:#e6eefc;color:#064e9b}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px}
+    th{background:#fbfdff}
+    .small{font-size:12px;color:var(--muted)}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+    .search{padding:8px;border-radius:8px;border:1px solid #e6edf3}
+    .note{font-size:12px;color:#0b7285;background:#e6f6fb;padding:8px;border-radius:8px}
+    @media(max-width:760px){form{grid-template-columns:1fr} .full{grid-column:auto}}
+  </style>
+  <!-- Header dengan logo dan judul di tengah -->
+<div style="text-align: center; margin-bottom: 40px;">
+  <!-- Logo di tengah -->
+  <img src="https://stpn.ac.id/backend/assets/images/atrbpn2.png" 
+       alt="Logo ATR/BPN" 
+       style="height:100px; display:block; margin:0 auto 15px auto;">
+  
+ 
+<body>
+  <div class="container">
+    <h1>Buku Tamu Digital - Kantor Pertanahan Kabupaten Kapuas</h1>
+    <p class="lead"> Selamat Datang Di Kantor Pertanahan Kabupaten Kapuas</p>
+
+   
+    <form id="guestForm" onsubmit="return addEntry();">
+      <div>
+        <label>Nama Lengkap</label>
+        <input id="nama" required autocomplete="name">
+      </div>
+      <div>
+        <label>NIK / Identitas</label>
+        <input id="nik" inputmode="numeric" autocomplete="off">
+      </div>
+      <div>
+        <label>Instansi / Alamat</label>
+        <input id="instansi">
+      </div>
+      <div>
+        <label>No. Telepon</label>
+        <input id="telp" inputmode="tel" autocomplete="tel">
+      </div>
+      <div class="full">
+        <label>Keperluan / Keterangan</label>
+        <textarea id="keperluan" rows="2"></textarea>
+      </div>
+      <div>
+        <label>Petugas Penerima</label>
+        <input id="petugas">
+      </div>
+      <div style="display:flex;align-items:end;gap:8px">
+        <div style="width:100%">
+          <label>Waktu (otomatis)</label>
+          <input id="waktu" readonly>
+        </div>
+        <div style="align-self:flex-end">
+          <button type="submit">Simpan</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="toolbar">
+      <div style="display:flex;gap:8px">
+        <input id="search" class="search" placeholder="Cari nama, instansi, keperluan..." oninput="renderEntries()">
+        <button class="secondary" onclick="exportCSV()">Ekspor CSV</button>
+        <label class="secondary" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border-radius:8px;border:1px solid #e6edf3;background:#fff">
+          Import CSV
+          <input id="fileImport" type="file" accept=".csv" style="display:none" onchange="importCSV(event)">
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="secondary" onclick="clearEntries()" title="Hapus semua data tamu">Hapus Semua</button>
+        <span class="small">Total: <strong id="count">0</strong></span>
+      </div>
+    </div>
+
+    <table id="table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Waktu</th>
+          <th>Nama</th>
+          <th>NIK</th>
+          <th>Instansi</th>
+          <th>Telp</th>
+          <th>Keperluan</th>
+          <th>Petugas</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+  </div>
+
+<script>
+const LS_KEY = 'buku_tamu_entries_v1';
+let entries = [];
+
+function nowStr(){
+  return new Date().toLocaleString('id-ID');
+}
+
+function loadEntries(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    entries = raw ? JSON.parse(raw) : [];
+  }catch(e){ entries = []; }
+  renderEntries();
+}
+
+function saveToStorage(){
+  localStorage.setItem(LS_KEY, JSON.stringify(entries));
+  renderEntries();
+}
+
+function addEntry(){
+  const nama = document.getElementById('nama').value.trim();
+  const nik = document.getElementById('nik').value.trim();
+  const instansi = document.getElementById('instansi').value.trim();
+  const telp = document.getElementById('telp').value.trim();
+  const keperluan = document.getElementById('keperluan').value.trim();
+  const petugas = document.getElementById('petugas').value.trim();
+  if(!nama){ alert('Nama wajib diisi'); return false; }
+  const entry = { id: Date.now(), waktu: nowStr(), nama, nik, instansi, telp, keperluan, petugas };
+  entries.unshift(entry); // terbaru di atas
+  saveToStorage();
+  document.getElementById('guestForm').reset();
+  document.getElementById('waktu').value = '';
+  return false; // prevent form submit
+}
+
+// set waktu field to current time when focusing form
+setInterval(()=>{
+  const el = document.getElementById('waktu');
+  if(el && document.activeElement !== document.getElementById('nama')){
+    el.value = nowStr();
+  }
+},1000);
+
+function renderEntries(){
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const filtered = entries.filter(e=>{
+    if(!q) return true;
+    return (e.nama||'').toLowerCase().includes(q) || (e.instansi||'').toLowerCase().includes(q) || (e.keperluan||'').toLowerCase().includes(q);
+  });
+  document.getElementById('count').textContent = filtered.length;
+  filtered.forEach((e,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${escapeHtml(e.waktu)}</td>
+      <td>${escapeHtml(e.nama)}</td>
+      <td>${escapeHtml(e.nik||'')}</td>
+      <td>${escapeHtml(e.instansi||'')}</td>
+      <td>${escapeHtml(e.telp||'')}</td>
+      <td>${escapeHtml(e.keperluan||'')}</td>
+      <td>${escapeHtml(e.petugas||'')}</td>
+      <td><button onclick="deleteEntry(${e.id})" class="secondary">Hapus</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function deleteEntry(id){
+  if(!confirm('Hapus entri ini?')) return;
+  entries = entries.filter(e=>e.id !== id);
+  saveToStorage();
+}
+
+function clearEntries(){
+  if(!confirm('Hapus semua entri dari penyimpanan lokal?')) return;
+  entries = [];
+  saveToStorage();
+}
+
+function exportCSV(){
+  if(!entries.length){ alert('Tidak ada data untuk diekspor'); return; }
+  const rows = [['waktu','nama','nik','instansi','telp','keperluan','petugas']];
+  entries.slice().reverse().forEach(e=>{
+    rows.push([e.waktu,e.nama,e.nik,e.instansi,e.telp,e.keperluan,e.petugas]);
+  });
+  const csv = rows.map(r=>r.map(csvEscape).join(',')).join('\n');
+  downloadFile(csv, `buku_tamu_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+}
+
+function csvEscape(s){
+  if(s==null) return '';
+  const str = String(s).replace(/"/g,'""');
+  if(str.search(/[",\n]/g)>=0) return '"'+str+'"';
+  return str;
+}
+
+function downloadFile(data, filename, type){
+  const blob = new Blob([data], {type: type || 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
+
+function importCSV(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const text = e.target.result;
+    const rows = parseCSV(text);
+    // expect header row
+    if(!rows.length) return alert('File kosong atau format CSV tidak dikenali');
+    const header = rows[0].map(h=>h.toLowerCase().trim());
+    const mapIndex = {waktu:header.indexOf('waktu'), nama:header.indexOf('nama'), nik:header.indexOf('nik'), instansi:header.indexOf('instansi'), telp:header.indexOf('telp'), keperluan:header.indexOf('keperluan'), petugas:header.indexOf('petugas')};
+    const newEntries = [];
+    for(let i=1;i<rows.length;i++){
+      const r = rows[i];
+      if(r.length===0) continue;
+      const ent = {
+        id: Date.now()+i,
+        waktu: mapIndex.waktu>=0 ? r[mapIndex.waktu] : nowStr(),
+        nama: mapIndex.nama>=0 ? r[mapIndex.nama] : (r[0]||''),
+        nik: mapIndex.nik>=0 ? r[mapIndex.nik] : '',
+        instansi: mapIndex.instansi>=0 ? r[mapIndex.instansi] : '',
+        telp: mapIndex.telp>=0 ? r[mapIndex.telp] : '',
+        keperluan: mapIndex.keperluan>=0 ? r[mapIndex.keperluan] : '',
+        petugas: mapIndex.petugas>=0 ? r[mapIndex.petugas] : ''
+      };
+      newEntries.push(ent);
+    }
+    // prepend imported entries so they appear first
+    entries = newEntries.reverse().concat(entries);
+    saveToStorage();
+    alert('Import selesai: '+newEntries.length+' entri ditambahkan');
+  };
+  reader.readAsText(file,'UTF-8');
+  // reset input so user can re-import same file later
+  event.target.value = '';
+}
+
+// very simple CSV parser (handles quoted fields)
+function parseCSV(text){
+  const rows = [];
+  let cur = [], curVal='';
+  let inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const ch = text[i];
+    const nxt = text[i+1];
+    if(inQuotes){
+      if(ch==='"'){
+        if(nxt==='"'){ curVal += '"'; i++; } else { inQuotes=false; }
+      } else { curVal += ch; }
+    } else {
+      if(ch==='"'){ inQuotes = true; }
+      else if(ch===','){ cur.push(curVal); curVal=''; }
+      else if(ch==='\r'){ continue; }
+      else if(ch==='\n'){ cur.push(curVal); rows.push(cur); cur=[]; curVal=''; }
+      else { curVal += ch; }
+    }
+  }
+  // push last
+  if(curVal!=='' || cur.length){ cur.push(curVal); rows.push(cur); }
+  return rows;
+}
+
+function escapeHtml(s){
+  if(!s && s!==0) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// init
+loadEntries();
+</script>
+</body>
+</html>
